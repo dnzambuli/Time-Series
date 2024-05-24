@@ -225,7 +225,7 @@ ggplot(aes(x = year), data = reg_data)+
   theme_minimal()
 ```
 
-## Exponential Trend 
+## Exponential Trend
 
 $$
 zt= log(y)
@@ -257,7 +257,7 @@ remember\ \sum t = 0\\
 \therefore \sum t z_t = \beta_1 \sum t^2 
 $$
 
-### Exercise 
+### Exercise
 
 The gross revenue of a company from 2015 to 2022 is given in the following table
 
@@ -323,4 +323,42 @@ ggplot(aes(x = year), data = exp_data)+
   )+
   scale_color_manual(name = "Legend", values = c("original" = "red", "smoothed" = "blue"))+
   theme_minimal()
+```
+
+#### iii trying exp functions
+
+```{r}
+exp_Data = function(df,x, y){
+  # transform
+  log_data = log(df[[y]])
+  
+  yr = df[[x]]
+  
+  # fit 
+  model = lm(log_data~yr, data = df )
+  
+  print(paste("model summary:\n", summary(model)))
+  
+  # intercepts
+  alpha = exp(coef(model)[1])
+  beta = coef(model)[2]
+  
+  cat("The alpha value is and the beta value is:\n\t", alpha, "\t", beta,"\n")
+  
+  val = df[[x]]
+  
+  predicted = alpha * exp(beta * val)
+  
+  return(predicted)
+  
+  
+}
+```
+
+```{r}
+exp_data$func_smth = exp_Data(exp_data, "t", "revenue")
+```
+
+```{r}
+exp_data
 ```
