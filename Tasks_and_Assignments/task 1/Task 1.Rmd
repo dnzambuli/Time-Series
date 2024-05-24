@@ -1,0 +1,116 @@
+---
+title: "Task 1"
+author: "Nzambuli Daniel"
+date: "2024-05-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question
+
+## The annual expenditure levels (in millions) to promote products and services for the financial services sector such as banks, insurance, investments, etc. from 2015 to 2022 are shown in the following table:
+
+| Year            | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 |
+|-----------------|------|------|------|------|------|------|------|------|
+| **Expenditure** | 5.5  | 7.2  | 8.0  | 9.6  | 10.2 | 11.0 | 12.5 | 14.0 |
+
+### Use exponential smoothing to obtain filtered values by taking α = 0.5, α = 0.7, α = 0.9 and calculate
+
+the forecast errors. Also, plot the original and smoothed values.
+
+```{r}
+data = data.frame(year = seq(2015, 2022),
+                  Expenditure = c(5.5, 7.2, 8.0, 9.6, 10.2, 11.0, 12.5, 14.0))
+
+data
+```
+
+### The function for Exponential Smoothing
+
+$$
+\rho_t = \alpha y_{t} + (1- \alpha) * \rho_{t - 1} 
+$$
+
+```{r}
+exp_smooth = function(alpha, vals){
+  out = c()
+  out = c(out, vals[1])
+  b = length(out)
+  for(i in seq(2, length(vals))){
+    pred = (alpha * vals[i]) + ((1-alpha) * out[i -1])
+    out = c(out, pred)
+  }
+  return(out)
+}
+```
+
+#### Get the Smoothed values
+
+```{r}
+alpha = c(0.5, 0.7, 0.9)
+df = data$Expenditure
+
+for (i in alpha){
+  lab = paste("alpha", toString(i))
+  data[[lab]] = exp_smooth(i, df)
+}
+
+data
+```
+
+### Forecast Errors
+
+$$
+forecast\ error = Actual\ value - smoothed\ value\\
+= X_t - \rho_t
+$$
+
+```{r}
+alpha_cols = colnames(data)[3:length(colnames(data))]
+
+for (i in alpha_cols){
+  heading = paste("Forecast_ERR", gsub("alpha ", "", i))
+  data[[heading]] = df - data[[i]]
+}
+
+data
+```
+
+#### Actual Forecast Error
+
+```{r}
+data[,6: ncol(data)]
+```
+
+## Plot the graph
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = year)) +
+  geom_line(aes(y = Expenditure, color = "Expenditure"), size = 0.5) +
+  geom_line(aes(y = `alpha 0.5`, color = "alpha 0.5"), size = 0.5) +
+  geom_line(aes(y = `alpha 0.7`, color = "alpha 0.7"), size = 0.5) +
+  geom_line(aes(y = `alpha 0.9`, color = "alpha 0.9"), size = 0.5) +
+  labs(
+    title = "Exponential Smoothing of Annual Expenditure to Promote Products and Services in Finance",
+    x = "Year",
+    y = "Expenditure",
+    color = "The Lines"
+  ) + 
+  theme_minimal() +
+  scale_color_manual(values = c("Expenditure" = "black", "alpha 0.5" = "red", "alpha 0.7" = "blue", "alpha 0.9" = "green"))
+
+```
+
+#### Explanation
+
+> The **Black line** represents the actual expenditure data. This line shows the real values over the years, against which the smoothed lines are compared.
+>
+> 1.  **Red line** $\alpha = 0.5$ : This line uses a moderate smoothing factor. Alpha at 0.5 gives equal weight to the most recent observation and the previous smoothed value.
+> 2.  **Blue line** $\alpha = 0.7$: This line has a higher alpha value, giving more weight to the more recent data points, it follows the actual expenditure data more closely than the red line.
+> 3.  **Green line** $\alpha = 0.9$: This line has an even higher alpha, making it very responsive to recent changes in the data.
+>
+> ***What I've Noticed:*** `The higher the alpha` the more closely the smoothing values track the latest trends in expenditure. This might also lead to the smooth graph picking up some of the noise.
