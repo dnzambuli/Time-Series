@@ -165,7 +165,9 @@ loes_val
 zero_yr_range  =  seq(min(task_data$zero_yr), max(task_data$zero_yr), length.out = 100)
 predicted_values  =  predict(quad_smth, newdata = data.frame(zero_yr = zero_yr_range))
 
-poly_fit  =  lm(predicted_values ~ poly(zero_yr_range, 2))
+loes_df = data.frame(zero_yr = zero_yr_range, pred = predicted_values)
+
+poly_fit  =  lm(predicted_values ~ zero_yr_range)
 coefficients(poly_fit)
 ```
 
@@ -176,7 +178,13 @@ $$
 ```{r}
 Coeffs = coefficients(poly_fit)
 
-cat("The GDP for 2022 is predicted to be: ", Coeffs[1] + (2022 - med_yr) * Coeffs[2] + (2022 - med_yr)^2 * Coeffs[3], "\n")
+loes_n = nrow(task_data)
+loes_yt = sum(task_data$GDP)
+loes_xt = sum(task_data$zero_yr)
+loes_xt_2 = sum(task_data$zero_yr ^ 2)
+loes_beta_2 = (loes_yt - (loes_n * Coeffs[1]) - (Coeffs[2] * loes_xt))/ loes_xt_2
+
+cat("The GDP for 2022 is predicted to be: ", Coeffs[1] + (2022 - med_yr) * Coeffs[2] + (2022 - med_yr)^2 * loes_beta_2, "\n")
 ```
 
 #### Confirm using the formula
@@ -243,4 +251,100 @@ ggplot(aes(x = year), data = task_data)+
   )+
   scale_color_manual(name = "Legend", values = c("original" = "black", "reg_smooth"= "red", "quad_smth"= "blue"))+
   theme_minimal()
+```
+
+> **DISCOVERY**
+>
+> **Remember** that the best fit model is the **Quadratic model** based on the higher **R-squared value**\
+>
+> -   using the built in method `loess()` we end up with a predicted value for the year 2022 of
+>
+>     $$
+>     GDP = 94.04349
+>     $$
+>
+> -   using the mathematical formula we end up with a GDP of
+>
+> $$
+> GDP = 85.81818
+> $$
+
+## The number of subscribers to a streaming service from 2014 to 2021 is given in the following table: 
+
+| Year                      | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 |
+|---------------------------|------|------|------|------|------|------|------|------|
+| Subscribers (in millions) | 2    | 5    | 11   | 20   | 35   | 50   | 70   | 95   |
+
+### i.) Fit the exponential trend
+
+```{r}
+exp_data = data.frame(year= seq(2014, 2021),
+                      subscribers = c(2, 5, 11, 20, 35, 50, 70, 95))
+exp_data
+```
+
+#### Model for exponential data
+
+$$
+y = \alpha e^{\beta x}
+$$
+
+```{r}
+exp_Data = function(df,x, y){
+  # transform
+  log_data = log(df[[y]])
+  
+  yr = df[[x]]
+  
+  # fit 
+  model = lm(log_data~yr, data = df )
+  
+  print(paste("model summary:\n", summary(model)))
+  
+  # intercepts
+  alpha = exp(coef(model)[1])
+  beta = coef(model)[2]
+  
+  cat("The alpha value is and the beta value is:\n\t", alpha, "\t", beta,"\n")
+  
+  val = df[[x]]
+  
+  predicted = alpha * exp(beta * val)
+  
+  return(predicted)
+  
+  
+}
+```
+
+```{r}
+exp_data$t = exp_data$year - median(exp_data$year)
+exp_data$exp_trend = exp_Data(exp_data, "t", "subscribers")
+```
+
+```{r}
+exp_data
+```
+
+### ii.) find the forecast errors
+
+```{r}
+exp_data$forecst_err = exp_data$subscribers - exp_data$exp_trend
+
+exp_data
+```
+
+### iii.) Use the exponential trend model to predict the number of subscribers for 2024.
+
+```{r}
+pred_subs = function(alpha, beta, target){
+  
+  return(alpha * exp(beta * target))
+}
+```
+
+```{r}
+med = median(exp_data$year)
+target = 2024 - med
+cat("The predicted subsribers are:\n\t",round(pred_subs(20.00024, 0.5395523, target)), "\n")
 ```
