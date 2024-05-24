@@ -1,0 +1,326 @@
+---
+title: "Weighted moving Average"
+author: "Nzambuli Daniel"
+date: "2024-05-14"
+output: html_document
+---
+
+# Finding the moving average
+
+```{r}
+season = rep(c("summer", "monsoon", "winter", "spring"), 3)
+
+data = data.frame(season = season,
+                  year = c(rep(2020, 4),
+                           rep(2021, 4),
+                           rep(2022, 4)),
+                  levels = c(70, 52, 22, 31, 101, 64, 24, 45, 146, 92, 38, 49))
+
+data
+
+```
+
+## moving average
+
+```{r}
+library(zoo)
+data$moving_avg =  rollapply(data$levels, width = 4, FUN = mean, align = 'right', fill = NA)
+data 
+```
+
+### ADD Weighted 1
+
+```{r}
+wgt = c(1, 2, 3, 4)
+
+weighted_avg = function(x){
+  sum(x * wgt)/ sum(wgt)
+}
+
+data$wgt_avg = rollapply(data$levels, width = 4, FUN = weighted_avg, align = 'right', fill = NA)
+
+data
+```
+
+## Plot the moving and weighted moving average
+
+```{r}
+x = seq(1, 9)
+
+plot_data = data.frame(x,
+             moving_avg = na.omit(data$moving_avg),
+             wgt_mvn_avg = na.omit(data$wgt_avg))
+
+plot_data
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(plot_data, aes(x=x))+
+  geom_line(aes(y = moving_avg), color = "blue")+
+  geom_line(aes(y = wgt_mvn_avg), color = "red")
+  labs(title = "Line Graphs of Moving Averages",
+       x = "X",
+       y = "Values") +
+  scale_color_manual(name = "Legend", values = c("moving_avg" = "blue", "wgt_mvn_avg" = "red")) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(data, aes(x = seq(1,12)))+
+  geom_line(aes(y = moving_avg), color = "blue")+
+  geom_line(aes(y = wgt_avg), color = "red")+
+  geom_line(aes(y = levels), color = "green")+
+  labs(title = "Line Graphs of Moving Averages",
+       x = "X",
+       y = "Values") +
+  scale_color_manual(name = "Legend", values = c("moving_avg" = "blue", "wgt_mvn_avg" = "red","original data" = "green")) +
+  theme_minimal()
+```
+
+## Exponential Moving Average
+
+```{r}
+exp_data = data.frame(year = c(rep(2018, 3),
+                               rep(2019, 3),
+                               rep(2020, 3),
+                               rep(2021, 3)),
+                      period = rep(c("I", "II", "III"), 4),
+                      no_claims = c(17, 13, 15, 19, 17, 19, 22, 14, 20, 23, 19, 20))
+
+exp_data
+```
+
+$$
+Exponential\ smoothing = \alpha * y_t + (1-\alpha) * y^{'}_{t-1}
+$$
+
+```{r}
+exp_smooth = function(alpha, x){
+  a = c(x[1])
+  
+  b = length(a)
+  for(i in c(2:length(x))){
+    val = (alpha * x[i]) + (1- alpha) * a[i -1]
+    a = c(a,val)
+  }
+  
+  return(a)
+}
+```
+
+```{r}
+x_exp = exp_data$no_claims
+exp_data$alpha_0.2 = exp_smooth(0.2, x_exp)
+exp_data$alpha_0.4 = exp_smooth(0.4, x_exp)
+exp_data$alpha_0.6 = exp_smooth(0.6, x_exp)
+exp_data$alpha_0.8 = exp_smooth(0.8, x_exp)
+
+exp_data
+```
+
+### Plot for exponential
+
+```{r}
+ggplot(exp_data, aes(x = seq(1, 12)))+
+  geom_line(aes(y = no_claims), color = "blue")+
+  geom_line(aes(y = alpha_0.2), color = "red")+
+  geom_line(aes(y = alpha_0.4), color = "green")+
+  geom_line(aes(y = alpha_0.6), color = "purple")+
+  geom_line(aes(y = alpha_0.8), color = "orange")+
+  labs(title = "Line Graphs of Moving Averages",
+       x = "X",
+       y = "Values") +
+  scale_color_manual(name = "Legend", values = c("original" = "blue", "alpha 0.2" = "red","alpha 0.4" = "green", "alpha 0.6" = "purple", "alpha 0.8" = "orange")) +
+  theme_minimal()
+```
+
+## Regression smoothing
+
+Given the data
+
+```{r}
+reg_data = data.frame(year = seq(2010, 2018),
+             sales = c(52, 54, 48, 60, 61, 66, 70, 80, 92))
+```
+
+### Finding $x_t$
+
+```{r}
+med_yr = median(reg_data$year)
+reg_data$x_t = reg_data$year - med_yr
+
+reg_data
+```
+
+### Finding $x_t Y_t$
+
+```{r}
+reg_data$x_y = reg_data$x_t * reg_data$x_t
+reg_data$x_t_sqrd = reg_data$x_t ^ 2
+
+reg_data
+```
+
+```{r}
+summary(lm(sales~x_t, data = reg_data))
+```
+
+### Extract the intercepts $b_0,\ b_1$
+
+```{r}
+lm(sales~x_t, data = reg_data)$coefficients
+```
+
+$$
+regression smoothing = x_t(data[x_t]) + Intercept
+$$
+
+```{r}
+reg_data$smooth = 4.80000 * reg_data$x_t + 64.77778 
+
+reg_data
+```
+
+### Plot
+
+```{r}
+library(ggplot2)
+
+ggplot(aes(x = year), data = reg_data)+
+  geom_line(aes(y = sales, color = "original"))+ 
+  geom_line(aes(y = smooth, color = "smoothed"))+
+  labs(
+    title = "regressive smoothing of sales for each year",
+    x = "year",
+    y = "sales"
+  )+
+  scale_color_manual(name = "Legend", values = c("original" = "blue", "smoothed" = "red"))+
+  theme_minimal()
+```
+
+## Quadratic Smoothing
+
+$$
+y = \beta_0 + \beta_1t + \beta_2 t^2
+$$
+
+```{r}
+reg_data$quad_smooth = predict(loess(sales~x_t, reg_data), reg_data)
+reg_data
+```
+
+```{r}
+ggplot(aes(x = year), data = reg_data)+
+  geom_line(aes(y = sales, color = "original"))+ 
+  geom_line(aes(y = smooth, color = "smoothed"))+
+  geom_line(aes(y = quad_smooth, color = "qsmoothed"))+
+  labs(
+    title = "regressive smoothing of sales for each year",
+    x = "year",
+    y = "sales"
+  )+
+  scale_color_manual(name = "Legend", values = c("original" = "blue", "smoothed" = "red", "qsmoothed" = "green"))+
+  theme_minimal()
+```
+
+## Exponential Trend 
+
+$$
+zt= log(y)
+$$
+
+$$
+y_t = \beta_0 e^{\beta_1 * t}\\
+log(Y_t) = log(\beta_0) + \beta_1 * t * log(e)\\
+= log(\beta_0) + \beta_1t
+$$
+
+to find $\beta_0$ we find $e^a$
+
+$$
+\sum z_t = na + \beta_1 \sum t 
+$$
+
+but $\sum t = 0$
+
+$$
+\therefore \frac{\sum z_t}{n} = a = log(\beta_0) 
+$$
+
+to find $\beta_1$
+
+$$
+\sum t z_t = a \sum t +  \beta_1 \sum t^2\\
+remember\ \sum t = 0\\
+\therefore \sum t z_t = \beta_1 \sum t^2 
+$$
+
+### Exercise 
+
+The gross revenue of a company from 2015 to 2022 is given in the following table
+
+| year              | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 |
+|-------------------|------|------|------|------|------|------|------|------|
+| **Gross Revenue** | 15   | 45   | 52   | 75   | 106  | 158  | 241  | 314  |
+
+#### i. Fit the exponential trend
+
+```{r}
+exp_data = data.frame(year = seq(2015, 2022),
+                      revenue = c(15, 45, 52, 75, 106, 158, 241, 314))
+exp_data
+```
+
+```{r}
+exp_data$t = exp_data$year - median(exp_data$year)
+exp_data$t_sqrd = exp_data$t^2
+exp_data$zt = log(exp_data$revenue)
+exp_data
+```
+
+**Find** $\beta_0$
+
+```{r}
+exp_n = nrow(exp_data)
+
+cat("Beta_0 of the data is: ",exp(sum(exp_data$zt)/ exp_n), "\n")
+```
+
+**Find** $beta_1$
+
+```{r}
+exp_data$tzt = exp_data$t * exp_data$zt
+exp_data
+```
+
+```{r}
+cat("Beta_1 is given as: ", sum(exp_data$tzt)/ sum(exp_data$t_sqrd), "\n")
+```
+
+##### Smooth the values
+
+```{r}
+beta_1 = 0.3971438 
+beta_0 = 87.17857
+exp_data$smoothed = beta_0  * exp(beta_1 * exp_data$t)
+exp_data
+```
+
+#### ii plot the data
+
+```{r}
+library(ggplot2)
+
+ggplot(aes(x = year), data = exp_data)+
+  geom_point(aes(y = revenue, color = "original"))+
+  geom_line(aes(y = smoothed, color = "smoothed"))+
+  labs(
+    title = "exponential smoothing",
+    x = "year",
+    y = "trend"
+  )+
+  scale_color_manual(name = "Legend", values = c("original" = "red", "smoothed" = "blue"))+
+  theme_minimal()
+```
