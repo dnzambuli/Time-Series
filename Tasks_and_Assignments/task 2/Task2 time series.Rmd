@@ -187,6 +187,13 @@ loes_beta_2 = (loes_yt - (loes_n * Coeffs[1]) - (Coeffs[2] * loes_xt))/ loes_xt_
 cat("The GDP for 2022 is predicted to be: ", Coeffs[1] + (2022 - med_yr) * Coeffs[2] + (2022 - med_yr)^2 * loes_beta_2, "\n")
 ```
 
+```{r}
+
+task_data$loes_pred =  Coeffs[1] + (task_data$year - med_yr) * Coeffs[2] + (task_data$year - med_yr)^2 * loes_beta_2
+
+task_data
+```
+
 #### Confirm using the formula
 
 $$
@@ -243,13 +250,15 @@ library(ggplot2)
 ggplot(aes(x = year), data = task_data)+
   geom_line(aes(y = GDP, color = "original"))+
   geom_line(aes(y = reg_smooth, color = "reg_smooth"))+
-  geom_line(aes(y = quad_smth, color = "quad_smth"))+
+  geom_line(aes(y = quad_smth, color = "quadratic_smth"))+
+  geom_line(aes(y = loes_pred, color = "loess_calc_pred"))+
+   geom_line(aes(y = math_quad, color = "math_calc_pred"))+
   labs(
     title = "GDP to Year Data",
     x = "year",
     y = "GDP"
   )+
-  scale_color_manual(name = "Legend", values = c("original" = "black", "reg_smooth"= "red", "quad_smth"= "blue"))+
+  scale_color_manual(name = "Legend", values = c("original" = "black", "reg_smooth"= "red", "quadratic_smth"= "blue", "loess_calc_pred" = "green", "math_calc_pred" = "orange"))+
   theme_minimal()
 ```
 
@@ -257,7 +266,7 @@ ggplot(aes(x = year), data = task_data)+
 >
 > **Remember** that the best fit model is the **Quadratic model** based on the higher **R-squared value**\
 >
-> -   using the built in method `loess()` we end up with a predicted value for the year 2022 of
+> -   using the built in method `loess()` we end up with a predicted value for the year 2022 of close to the prediction of the best fit smoothing
 >
 >     $$
 >     GDP = 94.04349
@@ -268,8 +277,17 @@ ggplot(aes(x = year), data = task_data)+
 > $$
 > GDP = 85.81818
 > $$
+>
+> **Interpreting the graphs**
+>
+> 1.  ***red line*** **–** *Least squares smoothing* labeled as `reg smoothing` creates a straight line at the least square difference distance between $\sum err^2 = 0$ the points. This bisects the troughs and peaks of the original trend line
+> 2.  ***green line*** **–** *The distance calculated by loess coefficients*labeled as `loes_calc_pred` follows the least squared difference line. However there is a curve to the line which has an increasing gradient when the GDP increases . However during down turns the gradient of the curve decreases. This is a better model for picking up on variation in GDP than Least squares smoothing that only offers the direction of GDP growth.
+> 3.  ***blue line –** The quadratic smoothing* It is an angular line that follows the trend line of the original GDP data. However it lacks the steep curves and tries to fit the data depending on the midpoint weight of its neighboring points without losing a lot of information. This low loss of information is reflected in the higher *r-squared* value compared to least square regression. This makes it the **best-fit line**
+> 4.  ***orange line*** – The mathematical calculation just creates a smoother version of blue quadratic smoothing line. This improves the accuracy of the quadratic smoothing prediction.
+>
+> From this: the GDP of $85.82$ is chosen as the most accurate prediction
 
-## The number of subscribers to a streaming service from 2014 to 2021 is given in the following table: 
+## The number of subscribers to a streaming service from 2014 to 2021 is given in the following table:
 
 | Year                      | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 |
 |---------------------------|------|------|------|------|------|------|------|------|
@@ -347,4 +365,42 @@ pred_subs = function(alpha, beta, target){
 med = median(exp_data$year)
 target = 2024 - med
 cat("The predicted subsribers are:\n\t",round(pred_subs(20.00024, 0.5395523, target)), "\n")
+```
+
+#### Plotting
+
+```{r}
+ggplot(aes(x = year), data = exp_data)+
+  geom_point(aes(y = subscribers, color = "original"))+
+  geom_line(aes(y = exp_trend, color = "exponential_smth"))+
+  labs(
+    title = "Exponential Smoothing of Subscriber Data",
+    x = "Years",
+    y = "subsribers"
+  )+
+  scale_color_manual(name = "Legend",
+                     values = c("original" = "maroon",
+                                "exponential_smth" = "purple"))+
+  theme_light()
+```
+
+#### Prediction plot
+
+```{r}
+pred_exp = rbind(data.frame(
+  year = c(2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021),
+  subscribers = exp_data$exp_trend,
+  t = c(-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5)
+),
+                 data.frame(year = 2024, subscribers = 667, t = 6.5))
+
+ggplot(pred_exp, aes(x = year, y = subscribers)) +
+  geom_point(aes(color = year == 2024), size = 4) +  
+  geom_line(data = pred_exp[pred_exp$year <= 2021, ], aes(group = 1)) + 
+  geom_line() +
+  scale_color_manual(values = c("black", "red")) +  
+  labs(title = "Subscribers Over the Years with 2024 Prediction",
+       x = "Year",
+       y = "Subscribers") +
+  theme_minimal()
 ```
