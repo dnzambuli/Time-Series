@@ -244,8 +244,27 @@ task_data$math_quad = coef_x[1] + task_data$zero_yr * coef_x[2] + task_data$zero
 task_data
 ```
 
+#### plot function
+
 ```{r}
 library(ggplot2)
+
+plot_smth = function(y_data, col){
+  plot_data = data.frame(x = task_data$year,
+                         y = task_data[[y_data]])
+  plot = ggplot(aes(x = x), data = plot_data)+
+    geom_line(aes(y = y, color = col))+
+    labs(
+    title = "GDP to Year Data",
+    x = "year",
+    y = "GDP"
+  )+
+  theme_minimal()
+  return(plot)
+}
+```
+
+```{r}
 
 ggplot(aes(x = year), data = task_data)+
   geom_line(aes(y = GDP, color = "original"))+
@@ -260,6 +279,26 @@ ggplot(aes(x = year), data = task_data)+
   )+
   scale_color_manual(name = "Legend", values = c("original" = "black", "reg_smooth"= "red", "quadratic_smth"= "blue", "loess_calc_pred" = "green", "math_calc_pred" = "orange"))+
   theme_minimal()
+
+
+
+
+```
+
+```{r}
+plot_smth("reg_smooth", "red")
+```
+
+```{r}
+plot_smth("quad_smth", "blue")
+```
+
+```{r}
+plot_smth("math_quad", "orange")
+```
+
+```{r}
+plot_smth("loes_pred", "red")
 ```
 
 > **DISCOVERY**
@@ -317,13 +356,15 @@ exp_Data = function(df,x, y){
   # fit 
   model = lm(log_data~yr, data = df )
   
-  print(paste("model summary:\n", summary(model)))
+  print("model summary:")
+  print(summary(model))
+  cat("\n\n\nThe R-squared value is:\n", summary(model)$r.squared)
   
   # intercepts
   alpha = exp(coef(model)[1])
   beta = coef(model)[2]
   
-  cat("The alpha value is and the beta value is:\n\t", alpha, "\t", beta,"\n")
+  cat("\n\n\nThe alpha value is and the beta value is:\n\t", alpha, "\t", beta,"\n")
   
   val = df[[x]]
   
@@ -404,3 +445,23 @@ ggplot(pred_exp, aes(x = year, y = subscribers)) +
        y = "Subscribers") +
   theme_minimal()
 ```
+
+# Trying Exponential on GDP
+
+```{r}
+task_data$exp_smth = exp_Data(task_data, "zero_yr", "GDP")
+```
+
+```{r}
+task_data
+```
+
+> **Conclusion**
+>
+> The ranking of the best model for predicting GDP based on R-squared value are
+>
+> 1.  **Quadratic Smoothing**
+> 2.  **Least squares smoothing**
+> 3.  **Exponential smoothing**
+>
+> The initial conclusion that the best predicted value for GDP is $85.82$ still stands.

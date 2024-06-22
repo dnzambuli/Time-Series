@@ -1,0 +1,54 @@
+---
+title: "week 5 take home"
+author: "Nzambuli Daniel"
+date: "2024-06-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question
+
+The marketing manager of a company that manufactures and distributes farming equipment (harvesting, plough and tractors) recorded the number of farming units sold quarterly for a period 2018 to 2020 which are given in the following table
+
+| Quarter |  Q1 |  Q2 |  Q3 |
+|:-------:|----:|----:|----:|
+|  2018   |  48 |  41 |  60 |
+|  2019   |  58 |  52 |  68 |
+|  2020   |  60 |  58 |  75 |
+
+## Find the quarterly seasonal indexes for farming equipment sold using the ratio to trend method by assuming that there is no cyclic effect
+
+```{r}
+sales_data = data.frame(
+  Year = c(2018, 2019, 2020),
+  Q1 = c(48, 58, 60),
+  Q2 = c(41, 52, 58),
+  Q3 = c(60, 68, 75),
+  Q4 = c(65, 74, 78)
+)
+
+sales_data
+```
+
+```{r}
+library(tidyr)
+sales_long = pivot_longer(sales_data, cols = starts_with("Q"), names_to = "Quarter", values_to = "Sales")
+sales_long
+```
+
+```{r}
+sales_data$annual_means = rowMeans(sales_data[,2:ncol(sales_data)])
+sales_data
+```
+
+### Predicting $\beta_0$ and $\beta_1$
+
+```{r}
+predictors = coef(lm(Year~annual_means, data = sales_data))
+predictors
+```
+
+## Do Seasonal forces significantly influence the sale of farming equipment? Comment

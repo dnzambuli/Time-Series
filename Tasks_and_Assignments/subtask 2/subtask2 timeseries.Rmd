@@ -1,0 +1,110 @@
+---
+title: "take away task 2"
+author: "Nzambuli Daniel"
+date: "2024-06-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exercise
+
+The marketing manager of a company that manufactures and distributes farming equipment(harvest, ploughs and tractors) recorded the number of farming units sold quarterly for the period 2018 to 2020 which are given in the following table
+
+|      |  Q1 |  Q2 |  Q3 |  Q4 |
+|:----:|----:|----:|----:|----:|
+| 2018 |  48 |  41 |  60 |  65 |
+| 2019 |  58 |  52 |  68 |  74 |
+| 2020 |  60 |  56 |  75 |  78 |
+
+## 1. Find the quarterly seasonal indexes for farming equipment sold using the ratio to trend method assuming that there is no cyclic effect
+
+-   find the 4 quarter moving average
+
+-   center the moving average to align the data with an actual quarter
+
+$$
+MA_i = \frac{1}{4}\sum^{t+4}_{i = t -2} sales_i\\
+centered\ MA = \frac{MA_i + MA_{i -1}}{2} \\
+seasonal\ ratio =  \frac{real\ value_i}{cMA_i} * 100
+$$
+
+```{r}
+sales_data = data.frame(year = seq(2018, 2020),
+                        Q1 = c(48, 58,60),
+                        Q2 = c(41, 52, 56),
+                        Q3 = c(60, 68, 75),
+                        Q4 = c(65, 74, 78))
+sales_data
+library(tidyr)
+sales_long = pivot_longer(sales_data, cols = starts_with("Q"), names_to = "Quarter", values_to = "Sales")
+sales_long
+```
+
+### Moving average
+
+```{r}
+library(zoo)
+sales_long$mov_avg = rollmean(sales_long$Sales, k = 4, fill = NA,align = "right")
+sales_long
+```
+
+**Remember** the values appear as
+
+| Quarter | sales | mov_avg |
+|:--------|:-----:|:-------:|
+| Q1      |  48   |         |
+| Q2      |  41   |         |
+|         |       |  53.5   |
+| Q3      |  60   |         |
+| Q4      |  65   |         |
+
+### Center the moving average
+
+```{r}
+sales_long$cMA = rollmean(sales_long$mov_avg, k = 2, fill = NA, align = 'center')
+sales_long
+```
+
+**Note**
+
+| Quarter | sales | mov_avg |   cMA |
+|:--------|:-----:|:-------:|------:|
+| Q1      |  48   |         |       |
+| Q2      |  41   |         |       |
+|         |       |  53.5   |       |
+| Q3      |  60   |         | 54.75 |
+|         |       |  56.0   |       |
+| Q4      |  65   |         |       |
+| Q1      |  58   |         |       |
+
+### Tend values
+
+$$
+\frac{sales}{cMA}
+$$
+
+```{r}
+cma_first_na = which(is.na(sales_long$cMA))[1]
+cma = sales_long$cMA[-cma_first_na]
+cma = c(cma, NA)
+cma
+
+sales_long$cMA = cma
+
+sales_long$trend_val = sales_long$Sales/sales_long$cMA
+sales_long
+```
+
+### Smoothed data
+
+```{r}
+smooth = data.frame(year = sales_long$year,
+                    quarter = sales_long$Quarter,
+                    sales = sales_long$trend_val)
+smooth
+```
+
+## 2. Do seasonal forces significantly influence the sale of farming equipment? Comment

@@ -1,0 +1,486 @@
+---
+title: "Mid Trimester"
+author: "Nzambuli Daniel"
+date: "2024-06-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.width=12, fig.height=6)
+```
+
+# The Data
+
+```{r}
+library(readxl)
+Mid_sem_dataset = read_excel("Mid-sem dataset.xlsx")
+Mid_sem_dataset
+```
+
+# CASE SCENARIO: TOURIST ANALYSIS IN CAPETOWN
+
+Cape Town, a scenic destination celebrated for its breathtaking landscapes and rich cultural heritage, attracts a diverse group of tourists throughout the year. Its charming old town, scenic hiking trails, vibrant local markets, and tranquil beaches offer visitors a wide array of activities. The attached hypothetical data provides insights into the number of tourists visiting Cape Town from 2019 to 2023.
+
+## 1. Determine the seasonal variation in tourist numbers for each using the ratio-to-moving average approach from 2019 to 2023.
+
+### Quarterly seasonal data only
+
+```{r}
+seasonal_data = Mid_sem_dataset[, c(1, 3, 4)]
+seasonal_data
+```
+
+#### Group by seasons in each year
+
+All the summers in 2019 2020 2022 2023 will be under the label summer ...
+
+```{r}
+library(tidyverse)
+seasonal_data = seasonal_data %>% group_by(Year, Season) %>% summarise(No_of_tourists = sum(No_of_tourists))
+seasonal_data
+```
+
+#### Reorder the column of season to appear like the original
+
+target order is `Summer, Autumn, Winter, Spring`
+
+```{r}
+seasonal_data$Season = factor(seasonal_data$Season, levels = c("Summer", "Autumn", "Winter", "Spring"))
+seasonal_data = seasonal_data[order(seasonal_data$Year, seasonal_data$Season),]
+seasonal_data
+```
+
+#### Moving average
+
+$$
+MA_t = \frac{1}{no.\ seasons} \sum^{t + 3}_{i = 1} x_i\\
+= \frac{1}{4}\sum^{t + 3}_{i = 1} x_i
+$$
+
+```{r}
+mov_avg = zoo::rollmean(seasonal_data$No_of_tourists, k = 4, fill = NA, align = "center")
+mov_avg
+```
+
+```{r}
+seasonal_data$mov_avg = mov_avg
+seasonal_data
+```
+
+```{r}
+rat_mn = zoo::rollmean(seasonal_data$mov_avg, k = 2, fill = NA, align = "center")
+rat_mn = c(NA, rat_mn[1:19])
+rat_mn
+```
+
+#### Centered Moving Average
+
+$$
+CMA_t = \frac{1}{2} (x_t + x_{t + 1})
+$$
+
+```{r}
+seasonal_data$rat_mn = rat_mn
+seasonal_data
+```
+
+#### Seasonal Ratio
+
+$$
+seasonal\ relatives = \frac{actual}{centralized\ avg} * 100
+$$
+
+```{r}
+seasonal_data$sn_rel = seasonal_data$No_of_tourists/ seasonal_data$rat_mn * 100
+seasonal_data
+```
+
+#### Pivot the seasonal indexes wider
+
+```{r}
+seas_wide = pivot_wider(seasonal_data[, c(1, 2, 6)], names_from = Year, values_from = sn_rel)
+seas_wide
+```
+
+#### find the median value
+
+```{r}
+seas_wide$median = apply(seas_wide[,2:6], 1, function(x) median(x, na.rm = T))
+seas_wide
+```
+
+#### Adjusted Seasonal indexes
+
+```{r}
+tot_seas_median = mean(seas_wide$median)
+seas_wide$seas_ind = seas_wide$median / tot_seas_median * 100
+seas_wide
+```
+
+### Monthly seasonal data
+
+#### Combine the initial code to a function
+
+```{r}
+present_month = function(data, x, season_size){
+  mov_avg = zoo::rollmean(data[[x]], k = season_size, fill = NA, align = "center")
+  print("The moving average is:")
+  print(mov_avg)
+  rat_mn = zoo::rollmean(mov_avg, k = 2, fill = NA, align = "center")
+  rat_mn = c(NA, rat_mn[1:(length(rat_mn) -1)])
+  print("The centralized moving average is:")
+  print(rat_mn)
+  sn_rel = month_data$No_of_tourists/ rat_mn * 100
+  print("The seasonal relative is:")
+  print(sn_rel)
+  long = data.frame(Year = data[,2],
+                    Season = data[, 1],
+                    sn_rel = sn_rel)
+  wide = pivot_wider(long, names_from = Year, values_from = sn_rel)
+  print("The data in wide format is:")
+  print(wide)
+  wide$median = apply(wide[,2:ncol(wide)], 1, function(x) median(x, na.rm = T))
+  tot_seas_median = mean(wide$median)
+  wide$seas_ind = wide$median / tot_seas_median * 100
+  print("With seasonal index")
+  return(wide)
+}
+```
+
+#### The annual data
+
+```{r}
+month_data = Mid_sem_dataset[, c(2, 3, 4)]
+colnames(month_data)
+```
+
+```{r}
+month_wide = present_month(month_data,"No_of_tourists", 12)
+month_wide
+```
+
+## 2. Obtain a clearer view of the underlying trend by eliminating seasonal fluctuations.
+
+### Monthly Data
+
+```{r}
+monthly_smoothed_data = data.frame(month = rep(month_wide$Month, 5),
+                               year = rep(seq(2019, 2023), 12),
+                               tourists = month_data$No_of_tourists,
+                               adj_seas_ind = rep(month_wide$seas_ind, 5))
+
+monthly_smoothed_data$deseason = monthly_smoothed_data$tourists/ monthly_smoothed_data$adj_seas_ind * 100
+monthly_smoothed_data
+```
+
+### Quarterly data
+
+```{r}
+quarter_smoothed_data = data.frame(quarter = rep(seas_wide$Season, 5),
+                               year = rep(seq(2019, 2023), 4),
+                               adj_seas_ind = rep(seas_wide$seas_ind, 5))
+quarter_smoothed_data = quarter_smoothed_data[order(quarter_smoothed_data$year),]
+quarter_smoothed_data$tourist = seasonal_data$No_of_tourists
+
+
+quarter_smoothed_data$deseasoned = quarter_smoothed_data$tourist/quarter_smoothed_data$adj_seas_ind * 100
+
+rownames(quarter_smoothed_data) = NULL
+quarter_smoothed_data
+
+```
+
+## 3. Compute the long-term trend in tourist numbers over the specified period by applying the suitable trend analysis to the deseasonalized data.
+
+if a linear model is to be used
+
+$$
+trend\ line = \beta_0 + \beta_1 t
+$$
+
+otherwise for quadratic
+
+$$
+trend\ line = \beta_0 + \beta_1 t + \beta_2t^2
+$$
+
+and for exponential
+
+$$
+trend\ line = \beta_0 + e^{\beta_1 t}
+$$
+
+### Generate t
+
+```{r}
+nrow(monthly_smoothed_data)
+```
+
+60 is even so
+
+$$
+x_t = 2(t - median(t))
+$$
+
+### Month data
+
+```{r}
+monthly_smoothed_data$t = seq(1:nrow(monthly_smoothed_data))
+med_month_t = median(monthly_smoothed_data$t)
+monthly_smoothed_data$x_t = 2*(monthly_smoothed_data$t - med_month_t)
+monthly_smoothed_data$t_sqrd = monthly_smoothed_data$t^2
+monthly_smoothed_data
+
+```
+
+After the transformation, the normal equations for linear trend line are:
+
+$$
+\sum Y_t = n\beta_0 + \beta_1\sum X_t 
+$$
+
+```{r}
+sum(monthly_smoothed_data$x_t)
+```
+
+therefore
+
+$$
+\frac{\sum Y_t}{n} = \beta_0
+$$
+
+additionally
+
+$$
+\sum X_t Y_t = \beta_0 \sum X_t + \beta_1 \sum X_t^2\\
+=  \beta_1 \sum X_t^2
+$$
+
+add the column for $X_t Y_t$ and $X_t^2$
+
+```{r}
+monthly_smoothed_data$XY = monthly_smoothed_data$deseason * monthly_smoothed_data$x_t
+monthly_smoothed_data$x_sqrd = monthly_smoothed_data$x_t^2
+monthly_smoothed_data
+```
+
+### Trend Values
+
+#### Test the best trend
+
+#### 1. simple linear
+
+```{r}
+summary(lm(deseason~x_t, data = monthly_smoothed_data))
+```
+
+#### 2. quadratic trend
+
+```{r}
+summary(lm(deseason~poly(x_t, 2, raw = T), data = monthly_smoothed_data))
+```
+
+```{r}
+summary(lm(deseason~x_t + x_sqrd, data = monthly_smoothed_data))
+```
+
+#### 3. exponential
+
+```{r}
+summary(nls(deseason~a + exp(b * x_t), data = monthly_smoothed_data, start = list(a = 1, b = 0.1)))
+```
+
+#### compare the models
+
+Lower **Residual R** values indicate a better fit.
+
+```{r}
+quadratic_model = lm(deseason~poly(x_t, 2, raw = T), data = monthly_smoothed_data)
+linear_model = lm(deseason~x_t, data = monthly_smoothed_data)
+
+linear_residual_R = summary(linear_model)$sigma
+quadrat_residual_R = summary(quadratic_model)$sigma
+if (linear_residual_R < quadrat_residual_R){
+  print("Linear Model is the best model")
+}else if(linear_residual_R == quadrat_residual_R){
+  print("any model can be used")
+}else{
+  print("Quadratic Model is the best model")
+}
+
+
+```
+
+#### quad vs exp
+
+```{r}
+exp_model = nls(deseason~a + exp(b * x_t), data = monthly_smoothed_data, start = list(a = 1, b = 0.1))
+
+exp_residual_R = summary(exp_model)$sigma
+if (exp_residual_R < quadrat_residual_R){
+  print("Exponential Model is the best model")
+}else if(linear_residual_R == quadrat_residual_R){
+  print("any model can be used; Exponential or Quadratic")
+}else{
+  print("Quadratic Model is the best model")
+}
+
+```
+
+#### Choosing quadratic model
+
+```{r}
+coeff_monthly = coef(quadratic_model)
+coeff_monthly
+monthly_b0 = coeff_monthly[1]
+monthly_b1 = coeff_monthly[2]
+monthly_b2 = coeff_monthly[3]
+```
+
+```{r}
+monthly_smoothed_data$trend = monthly_b0 + (monthly_b1 * monthly_smoothed_data$t) + (monthly_b2 * monthly_smoothed_data$t_sqrd)
+monthly_smoothed_data
+```
+
+### quarter
+
+```{r}
+nrow(quarter_smoothed_data)
+```
+
+```{r}
+quarter_smoothed_data$t = seq(1, 20)
+med_quarter = median(quarter_smoothed_data$t)
+quarter_smoothed_data$x = 2 * (quarter_smoothed_data$t- med_quarter)
+```
+
+#### Compare the models
+
+```{r}
+quadratic_model_q = lm(deseasoned~poly(x, 2, raw = T), data = quarter_smoothed_data)
+linear_model_q = lm(deseasoned~x, data = quarter_smoothed_data)
+
+linear_residual_R = summary(linear_model_q)$sigma
+quadrat_residual_R = summary(quadratic_model_q)$sigma
+if (linear_residual_R < quadrat_residual_R){
+  print("Linear Model is the best model")
+}else if(linear_residual_R == quadrat_residual_R){
+  print("any model can be used")
+}else{
+  print("Quadratic Model is the best model")
+}
+```
+
+```{r}
+quarter_smoothed_data$log_deseason = log(quarter_smoothed_data$deseasoned)
+exp_model_q = lm(log_deseason~x, data = quarter_smoothed_data)
+
+exp_residual_R = summary(exp_model_q)$sigma
+if (exp_residual_R < quadrat_residual_R){
+  print("Exponential Model is the best model")
+}else if(linear_residual_R == quadrat_residual_R){
+  print("any model can be used; Exponential or Quadratic")
+}else{
+  print("Quadratic Model is the best model")
+}
+
+```
+
+#### Generate the rest of the columns
+
+```{r}
+quarter_smoothed_data$XY = quarter_smoothed_data$deseasoned * quarter_smoothed_data$x
+quarter_smoothed_data$x_sqrd = quarter_smoothed_data$x^2
+quarter_smoothed_data$t_sqrd = quarter_smoothed_data$t^2
+quarter_coeff = coef(exp_model_q)
+quarter_coeff
+quarter_b0 = exp(quarter_coeff[1])
+quarter_b0
+quarter_b1 = quarter_coeff[2]
+quarter_b1
+quarter_smoothed_data$trend = quarter_b0 + exp(quarter_b1 * quarter_smoothed_data$t)
+quarter_smoothed_data
+```
+
+## 4. Obtain the cyclic index to better understand the cyclical variations in tourist numbers that may be influenced by economic cycles or other factors.
+
+$$
+cyclic\ index = \frac{deseasonalized\ data}{trend\ value} * 100
+$$
+
+### Monthly
+
+```{r}
+monthly_smoothed_data$cyclic = monthly_smoothed_data$deseason/ monthly_smoothed_data$trend * 100
+monthly_smoothed_data
+```
+
+### Quarters
+
+```{r}
+quarter_smoothed_data$cyclic = quarter_smoothed_data$deseason/ quarter_smoothed_data$trend * 100
+quarter_smoothed_data
+```
+
+## 5. Generate graphs of the data to illustrate the seasonal, trend, and cyclic components in the number of tourists visiting Cape Town.
+
+### Monthly
+
+```{r}
+months = c(
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+)
+
+monthly_smoothed_data$month = factor(monthly_smoothed_data$month, levels = months)
+monthly_smoothed_data$season_year = paste(monthly_smoothed_data$month, monthly_smoothed_data$year)
+monthly_smoothed_data$season_year = factor(monthly_smoothed_data$season_year, levels = unique(monthly_smoothed_data$season_year))
+# 
+# 
+ggplot(monthly_smoothed_data, aes(x = season_year)) +
+  geom_line(aes(y = tourists, color = "original"), group = 1) +
+  # geom_line(aes(y = adj_seas_ind, color = "seasonal"), group = 1) +
+  geom_line(aes(y = deseason, color = "deseason"), group = 1, linetype = "dotted") +
+  geom_line(aes(y = trend, color = "trend"), group = 1) +
+  geom_line(aes(y = cyclic, color = "cyclic"), group = 1) +
+  labs(title = "Seasonal Index from Summer 2019 to Spring 2023",
+       x = "Time",
+       y = "Seasonal Index") +
+  theme_minimal() +
+  scale_color_manual(name = "Legend", values = c("original" = "black", "trend"= "blue", "cyclic" = "darkgreen", "deseason" = "red"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+> Using the monthly data,
+>
+> 1.  There is an upward trend in the visitors to Capetown
+> 2.  There does not seem to be a cycle where visitors stop or increase when visiting cape town
+> 3.  There is a very low rise in visitors to Capetown up to 2021 where there seems to be a spike and then a drop after may 2021
+
+### Quarter
+
+```{r}
+quarter_smoothed_data$date = as.Date(paste(quarter_smoothed_data$year, as.numeric(quarter_smoothed_data$quarter) * 3 - 2, "1", sep = "-"), format = "%Y-%m-%d")
+
+quarter_smoothed_data$season_year = paste(quarter_smoothed_data$quarter, quarter_smoothed_data$year)
+
+ggplot(quarter_smoothed_data, aes(x = date)) +
+  geom_line(aes(y = tourist, color = "original"), group = 1) +
+  geom_line(aes(y = deseasoned, color = "deseason"), group = 1, linetype = "dotted") +
+  geom_line(aes(y = trend, color = "trend"), group = 1) +
+  geom_line(aes(y = cyclic, color = "cyclic"), group = 1) +
+  labs(title = "Quarterly Seasonal Index from Summer 2019 to Spring 2023",
+       x = "Time",
+       y = "Seasonal Index") +
+  theme_minimal() +
+  scale_color_manual(name = "Legend", values = c("original" = "black", "trend"= "blue", "cyclic" = "darkgreen", "deseason" = "purple"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+> The quarter trend
+>
+> 1.  There seems to be no trend when viewed across quarters
+> 2.  There are peaks only during summer and then the visitation drops.
