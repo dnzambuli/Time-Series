@@ -1,0 +1,74 @@
+#######################################################################
+##
+# Using python to read csv
+##
+########################################################################
+{python}
+Sys.setenv(RETICULATE_PYTHON = "C:/Users/ADMIN/anaconda/python.exe")
+
+{python}
+import pandas as pd
+data = pd.read_csv("timeseries_data.csv")
+data.head
+
+{python}
+# convert to excel
+data.to_excel('timeseries_data.xlsx', index = False)
+
+#######################################################################
+##
+# first idea
+##
+########################################################################
+
+
+timeseries_data = timeseries_data %>% 
+  mutate(Month = ifelse(Month == "01", "January", Month)) %>%
+  mutate(Month = ifelse(Month == "02", "February", Month)) %>%
+  mutate(Month = ifelse(Month == "03", "March", Month)) %>%
+  mutate(Month = ifelse(Month == "04", "April", Month)) %>%
+  mutate(Month = ifelse(Month == "05", "May", Month)) %>%
+  mutate(Month = ifelse(Month == "06", "June", Month)) %>%
+  mutate(Month = ifelse(Month == "07", "July", Month)) %>%
+  mutate(Month = ifelse(Month == "08", "August", Month)) %>%
+  mutate(Month = ifelse(Month == "09", "September", Month)) %>%
+  mutate(Month = ifelse(Month == "10", "October", Month)) %>%
+  mutate(Month = ifelse(Month == "11", "November", Month)) %>%
+  mutate(Month = ifelse(Month == "12", "December", Month))
+  
+timeseries_data$Month = factor(timeseries_data$Month, levels = c("January", "February", "March", "April", "May", "June", "July" ,"August" ,"September",  "October" ,"November", "December"))
+
+timeseries_data = ts(timeseries_data, start = Month == "January", Year = "2017")
+
+head(timeseries_data)
+
+##############################################################################
+##
+### plot
+##
+##############################################################################
+library(ggplot2)
+
+plot_data_1 = timeseries_data
+plot_data_1$Date = paste(plot_data_1$Year, plot_data_1$Month, sep = '-')
+
+plot_data_1$Year <- sub("-.*", "", plot_data_1$Date)
+
+
+ggplot(plot_data_1, aes(x = Date, y = Sales, group = 1)) +
+  geom_line(color = "red") +
+  labs(title = "Time Series Data of Sales since 2017",
+       x = "Year",
+       y = "Sales") +
+  scale_x_discrete(breaks = plot_data_1$Date[grep("-January", plot_data_1$Date)],  labels = unique(sub("-.*", "", plot_data_1$Date[grep("-January", plot_data_1$Date)]))) + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+#############################################################################
+##
+### from plot 2
+##
+#############################################################################
+ theme(axis.text.x = element_text(angle = 90, hjust = 1))

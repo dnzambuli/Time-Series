@@ -1,0 +1,302 @@
+---
+title: "Task 4"
+author: "Nzambuli Daniel"
+date: "2024-07-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data set Description: You have been provided with monthly sales data for a new retail store over a period of approximately 6.5 years (80 months). The data is measured in thousands of dollars.
+
+```{r}
+data = read.csv("timeseries_data.csv")
+head(data)
+```
+
+```{r}
+# convert to excel
+writexl::write_xlsx(data, "timeseries_data.xlsx")
+```
+
+## 1. Load the data set into RStudio and plot a time series graph to visualize the monthly sales data.
+
+```{r}
+library(readxl)
+timeseries_data = read_excel("timeseries_data.xlsx")
+head(timeseries_data)
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+```
+
+### Provide an interpretation of any observed trends or patterns in the data.
+
+using `ts()` to convert data to timeseries data
+
+-   time is extracted by using `time()`
+
+-   the sales values are extracted using `as.vector()`
+
+```{r}
+timeseries_data = timeseries_data %>% separate(Date, into = c("Year", "Month"), sep = "-")
+timeseries_data$Year = as.numeric(timeseries_data$Year )
+timeseries_data$Month = as.numeric(timeseries_data$Month)
+timeseries_data = ts(timeseries_data$Sales, start = c(2017, 1), frequency = 12)
+head(timeseries_data)
+```
+
+#### Create Time Series Data Frame
+
+```{r}
+timeseries_df = data.frame(Time = as.numeric(time(timeseries_data)),
+                           Sales = as.vector(timeseries_data))
+head(timeseries_df)
+```
+
+#### Plot the data
+
+```{r}
+library(ggplot2)
+
+ggplot(timeseries_df, aes(x = Time, y = Sales)) +
+  geom_line() + 
+  labs(title = "Sales Over Time", x = "Time", y = "Sales") +
+  theme_minimal()
+```
+
+## 2. Perform the Augmented Dickey-Fuller (ADF) test on the sales data to determine if it is stationary
+
+Determine if time series data is stationery; mean, variance, and autocorrelation are constant over time.
+
+$$
+\Delta y_t = \alpha + \beta t + \gamma y_{t -1} + \delta_1 \Delta y_{t -1} + \delta_2 \Delta y_{t -2} + ... + + \delta_p \Delta y_{t -p} + \epsilon_t
+$$
+
+-   $y_t$​ is the time series.
+
+<!-- -->
+
+-   $\Delta y_t$​ represents the first difference of the series $y_t - y_{t-1}$.
+
+-   $\alpha$ is a constant.
+
+-   $\beta_t$ captures a linear trend.
+
+-   $\gamma$ is the coefficient on $y_{t-1}$​, the lagged value of the series.
+
+-   $\delta_1, \delta_2, ...$ are the coefficients for the lagged differences.
+
+-   $\epsilon_t$ is the error term.
+
+-   $p$ is the number of lagged differences included.
+
+**Hypothesis**
+
+$H_0$ the time series is not stationary
+
+$H_1$ the time series is stationary
+
+using `adf.test` from `tseries` library
+
+### Interpret the results of the test and discuss the implications for further analysis.
+
+```{r}
+library(tseries)
+
+k = trunc((nrow(timeseries_df)-1)^(1/3)) # according to r documentation this is the lag value 
+
+adf.test(timeseries_df$Sales, k = k)
+```
+
+-   A **more negative** Dickery-Fuller value is evidence against the null hypothesis that the data is not stationary
+
+-   Lag Order – the number of lagged differences used
+
+-   p-value `0.01` reject the $H_0$
+
+**conclude that the data is stationary**
+
+## 3. Apply the Box-Cox transformation to the sales data to stabilize variance.
+
+Normally distribute the data by using $\lambda$ that is varies over real numbers
+
+$$
+if\ \lambda \neq 0\:  y(\lambda) = \frac{y^{\lambda} - 1}{\lambda}\\
+if\ \lambda = 0 : y(\lambda) = \log {y}
+$$
+
+The **log-likelihood** is used to evaluate how well different lambda values normalize the variance and approximate a normal distribution in the transformed data.
+
+### Plot the transformed data and interpret how the transformation impacts the distribution and stationarity of the data.
+
+#### Find the lambda
+
+```{r}
+library(MASS)
+bx_cox = boxcox(lm(timeseries_df$Sales~1))
+lambda = bx_cox$x[which.max(bx_cox$y)]
+lambda
+```
+
+-   **Zero** is outside the confidence interval of the optimal `lambda`
+
+-   The peak of this curve indicates the lambda value that maximizes the log-likelihood
+
+-   **Vertical Lines** represent the confidence interval for $\lambda$
+
+-   95% represents the critical value for identifying optimum $\lambda$
+
+A $\lambda = 0.7070707$ indicates that a linear model could fit the data adequately while stabilizing variance to make the distribution normal.
+
+The large confidence interval indicates that there is high flexibility in choosing lambda. Because of the flexibility and the $\lambda \approx 1$ applying box-cox transformation may not change the data much.
+
+#### Apply Box-cox
+
+```{r}
+timeseries_df$transformed = ((timeseries_df$Sales ^ lambda) - 1)/ lambda
+head(timeseries_df)
+```
+
+#### Plot
+
+```{r}
+plot_data_2 = timeseries_df
+
+ggplot(plot_data_2, aes(x = Time, group = 1)) +
+  geom_line(aes(y = Sales, color = "original")) +
+  geom_line(aes(y = transformed, color = "transformed")) +
+  labs(title = "Time Series and Box-Cox transformed Data of Sales since 2017",
+       x = "Year",
+       y = "Sales") +
+   scale_color_manual(name = "Legend", values = c("original" = "red", "transformed"= "blue"))+
+  theme_minimal()
+ 
+```
+
+## 4. Perform the ADF test on the transformed sales data to confirm stationarity
+
+### Interpret the results and compare them with those from Question 2 to assess the effectiveness of the Box-Cox transformation
+
+```{r}
+adf.test(timeseries_df$transformed, k = k)
+```
+
+-   **Positive Dickey-Fuller** –strong support for $H_0$
+
+-   **P-value** – $\geq 0.05$ fail to reject $H_0$
+
+**Conclude that the new generated data is not stationary**
+
+#### Conclusions
+
+reason
+
+1.  optimum $\lambda$ was selected
+2.  The transformation has not achieved stationarity
+3.  Because of this a conclusion that the data may have seasonality on top of the trend was made.
+
+The **variance-stabilizing** does not sufficiently achieve stationarity
+
+## 5. Compute and plot the Autocorrelation Function (ACF) for up to 20 lags of the transformed sales data.
+
+### mean of $Y_t$
+
+```{r}
+mean_yt = mean(timeseries_df$Sales)
+mean_yt
+```
+
+### Autocorrelation data
+
+```{r}
+auto_cor = timeseries_df[, c(1, 3)]
+```
+
+### Auto-corr function
+
+autocorrelation $\rho_k$ for $k = 0, 1, 2, ..., 20$ can be found by
+
+$$
+\rho_k = \frac{\sum^{T}_{t = k + 1} (Y_t - \mu) (Y_{t-k} - \mu) }{\sum^{T}_{t = 1} (Y_t - \mu)^2}
+$$
+
+```{r}
+auto_corr_func = function(data, k){
+  n = length(data)
+  mu = mean(data)
+  
+  # T = n 
+  # Y_t - mu = y_{k+ 1}, ..., y_{n} like in class (91, 45, 89,...) are moved 1 step below for eack new k the y column. new data mean variation
+  # Y_{t -k} - original column but not last value y_1, ..., y_{n-k}. original mean variation
+  # denominator is just the original column variance
+  num = sum(((data[(k+1): n]) - mu)  *((data[1: (n-k)]) - mu))
+  denom = sum((data -mu)^2)
+  
+  autocorr = num/denom
+  
+  return(autocorr)
+}
+```
+
+### fit the auto corr
+
+```{r}
+for(i in seq(0,20)){
+  col_name = paste("ACF_k_", i)
+  auto_cor[[col_name]] = auto_corr_func(auto_cor$transformed, i)
+}
+```
+
+### check
+
+```{r}
+head(auto_cor)
+tail(auto_cor)
+```
+
+The values in the ACF_k columns are the same so taking one row should be enough for creating the ACF plot.
+
+### Plot
+
+```{r}
+library(stats)
+plot_data_3 = data.frame(Lag = seq(0,20),
+                         ACF = unlist(auto_cor[, 3:ncol(auto_cor)][1,], use.names = FALSE))
+
+ggplot(plot_data_3, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") + 
+  geom_hline(yintercept = sd(plot_data_3$ACF), linetype = "dashed", color = "red") + 
+  labs(
+    title = "Autocorrelation Function (ACF)", 
+    x = "Lag", 
+    y = "Autocorrelation") +
+  theme_minimal()
+```
+
+#### Interpret the correlogram to identify any significant autocorrelation patterns and
+
+their implications for forecasting
+
+-   The ACF at lag 0 is always 1, as any series is perfectly correlated with itself at lag 0.
+
+-   Observations close together are closer in correlation, however due to the decrease in autocorrelation from lag 0 the farther two observations are the less the correlation
+
+-   The declining but positive ACF values suggest that the series might be stationary
+
+-   The most recent values give the best predictors
+
+# References
+
+cran.r-project.org. (2020). *Package “tseries” title time series analysis and computational finance*. <https://cran.r-project.org/web/packages/tseries/tseries.pdf>
+
+Jim. (2022, October 23). *Box cox transformation in R \| r-bloggers*. R-Bloggers.com. <https://www.r-bloggers.com/2022/10/box-cox-transformation-in-r/>
+
+RDocumentation. (n.d.). *Adf.test function - rdocumentation*. Www.rdocumentation.org. Retrieved July 13, 2024, from <https://www.rdocumentation.org/packages/tseries/versions/0.10-56/topics/adf.test>
+
+RDocumentation. (n.d.-b). *Ts function \| R documentation*. Www.rdocumentation.org. <https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/ts>
