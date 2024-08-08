@@ -1,0 +1,28 @@
+#############################################
+#
+## ARIMA
+#
+#############################################
+
+sim_arima = Arima(ts(rnorm(500)), order = c(1, 1, 1), c(0.65, NA, 0.4))
+head(sim_arima)
+
+
+#########################################
+#
+## email to dr Verrah
+#
+#########################################
+
+subject: Request for Clarification on Assignment 5 Deadline Extension
+
+I hope this email finds you well.
+
+I am writing to seek clarification regarding a potential extension for the submission deadline of Assignment 5 for our time series course. Earlier today, my classmate, Michael Vukasu, mentioned that during yesterday's Mathematical Modeling class, there was a discussion about extending the deadline to Thursday, August 1, 2024. 
+
+Could you please confirm if this extension applies to all students? I would like to ensure that everyone in the class is accurately informed and can plan accordingly. 
+
+Thank you for your attention to this matter. I look forward to your confirmation
+
+kind regards,
+Nalubiri Sharon.

@@ -1,0 +1,530 @@
+---
+title: "STA3050 Assignment 5"
+author: "Nzambuli Daniel"
+date: "2024-07-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# QUESTION 1: Fitting an ARMA Model:
+
+You are a data analyst tasked with modeling a time series using an ARMA model. Your objective is to understand the dynamics of the series and make future forecasts.
+
+**Packages**: forecast and tseries
+
+## 1. Simulate a time series dataset of length 500 from an ARMA(2,1) model with AR parameters 0.5 and 0.3, and an MA parameter 0.4. Ensure you set a seed for reproducibility
+
+```{r}
+library(stats)
+library(forecast)
+library(tseries)
+```
+
+### ARMA in R
+
+> Using `ARMA_SIM` from stats (r-project_org, 2024)
+
+```{r}
+set.seed(2222)
+
+q1_data = arima.sim(n = 500, model = list(ar = c(0.5, 0.3), ma = c(0.4)))
+head(q1_data)
+```
+
+## 2. Plot the simulated time series data and describe any patterns or characteristics you observe
+
+```{r}
+q1_arma_data = data.frame(
+  time = seq(1,500),
+  data = as.numeric(q1_data)
+)
+head(q1_arma_data)
+```
+
+```{r}
+library(ggplot2)
+ggplot(q1_arma_data, aes(x = time, y = data))+
+  geom_line()+
+  labs(
+    title = "simulated ARMA data",
+    xlab = "time",
+    ylab = "Simulated"
+  )+
+  theme_minimal()
+```
+
+> **Observed Patterns and Characteristics**
+>
+> 1.  **Volatility** – the data exibits high volatility with steep rises and drops across the period of time
+> 2.  **Heteroskedasticity** – the amptitudes of the variance is not constant and varies across the time period
+> 3.  **Seasonality** – there is no observed begin and end. There is no observed pattern in the data
+> 4.  **Extreme values** – there are extreme values at around `-6` and `4.3`
+> 5.  **Mean** – the mean hovers about 0
+> 6.  **Trend** – there is no observed trend
+
+## 3. Plot the ACF and PACF of the simulated ARMA data. Interpret the plots
+
+### Check stationarity
+
+```{r}
+library(tseries)
+adf.test(q1_arma_data$data, alternative = "stationary")
+```
+
+-   **Null Hypothesis** $H_0$: The data is non-stationary. This implies that the statistical properties of the series, such as the mean and variance, are dependent on time.
+
+-   **Alternative Hypothesis** $H_1$: The data is stationary. This means the statistical properties of the series, such as the mean and variance, are constant over time and do not depend on when the observations were taken.
+
+> Because the p-value is $<0.05$ we reject the null hypothesis and conclude that the data is stationary.
+>
+> We can run the ACF test without needing to *difference* the data to make it stationary
+
+### ACF plot
+
+```{r}
+auto_corr_func = function(data, k){
+  n = length(data)
+  mu = mean(data)
+  if(k == 0){
+    return(1)
+  }else{
+  num = sum(((data[(k+1): n]) - mu)  *((data[1: (n-k)]) - mu))
+  denom = sum((data -mu)^2)
+  
+  autocorr = num/denom
+  
+  return(autocorr)
+  }
+}
+```
+
+```{r}
+plot_data_acfs = data.frame(
+  lag = seq(0,25)
+)
+
+data_acf = q1_arma_data$data
+for(i in seq(0,25)){
+  col_name = paste("ACF_k_", i)
+  plot_data_acfs[[col_name]] = auto_corr_func(data_acf, i)
+}
+
+
+print(paste("There are:", ncol(plot_data_acfs)-1,"\nThe first 6 are:"))
+head(plot_data_acfs)
+```
+
+#### Comparing the calculated plot and the built-in plot
+
+```{r}
+plot_data_acfs$acf = c(unlist(unname(plot_data_acfs[1, 2:27])))
+
+N = length(plot_data_acfs$acf)
+std_error = 0.5/sqrt(N)
+
+
+ggplot(plot_data_acfs, aes(x = lag, y = acf)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") + 
+  geom_hline(yintercept = c(-std_error, std_error), linetype = "dashed", color = "red") + 
+  labs(
+    title = "Autocorrelation Function (ACF)", 
+    x = "Lag", 
+    y = "Autocorrelation") +
+  theme_minimal()
+```
+
+```{r}
+acf(q1_data, main = "ACF of Simulated ARMA(2,1) Data")
+```
+
+> **Observation**
+>
+> 1.  lag `0 - 12` are above the dashed line
+> 2.  There auto-correlations drop from 1 and keep dropping to close to 0
+>
+> **Interpretation**
+>
+> The near-zero auto-correlations after the initial drop indicate limited long-term predictable patterns.
+>
+> The influence of the AR terms is strong initially and diminishes quickly
+>
+> This follows where an ARMA(2,1) model moving averages impact the immediate lag and the auto-regressive parameters impact the first two lags.
+>
+> When the lags move close to 0 it indicates that there is **little noise** with limited long-term predictable structure beyond what the model's parameters can explain
+
+### PACF plot
+
+Based on r documentation `pacf` can be used to plot the partial autocorrelations.
+
+```{r}
+pacf(q1_data, main = "PACF of Simulated ARMA(2,1) Data")
+```
+
+> **Observations**
+>
+> 1.  The **first lag(0)** and **second lag(1)** are the longest
+> 2.  After **lag 2** the values drop to `near 0` below the dashed line.
+
+> **Interpretations**
+>
+> The dashed line is used to represents the a standard error of the data set at $\frac{\pm 2} {T}$ where T is the length of the time series data.
+>
+> Because of this, the lags that fall below the dashed lines have no significant relationships with the past values.
+>
+> The first two lags explain the unique information that is not explained by the other lag values.
+>
+> **Meaning:** the `first two past values` have a significant linear relationship with the current value after accounting for all other lags.
+>
+> **Model Fit:** The model fits for the an auto regressive(2). This is because the PACF **cuts off at the second lag**. An AR(2) is therefore the most appropriate for this auto-regressive moving average set at (2 AR parameters, 1 MA parameter).
+
+## 4. Fit an ARMA(2,1) model to the simulated data. Summarize the model and interpret the key output components, including parameter estimates and their significance, standard error, and model fit statistics
+
+```{r}
+arma_model_q1 = arima(q1_data, order= c(2, 0, 1))
+
+summary(arma_model_q1)
+```
+
+> +----------------+----------------------------+-----------------------------------------------------------------------------------------------------------------+
+> | Output         | Type                       | Meaning                                                                                                         |
+> +================+============================+=================================================================================================================+
+> | 0.2997, 0.4065 | auto-regressive parameters | -   For ar1 the se is close to the ar1 parameter which indicates a challenge in the reliability of the estimate |
+> |                |                            |                                                                                                                 |
+> |                |                            | -   ar2 is a more reliable estimate of the as the error has a lower magnitude than the estimate                 |
+> +----------------+----------------------------+-----------------------------------------------------------------------------------------------------------------+
+> | 0.5625         | moving average             | -   MA adds to the prediction based on the error term from the previous time step.                              |
+> +----------------+----------------------------+-----------------------------------------------------------------------------------------------------------------+
+> | 0.1535         | intercept                  | -   the higher error than the estimate indicates slight uncertainty in the estimate                             |
+> +----------------+----------------------------+-----------------------------------------------------------------------------------------------------------------+
+>
+> the **Variance** is close to `1` indicating that the model leaves alot of uncertainity unexplained
+>
+> the **log likelihood** is a measure of how likely the model is to generate the provided data. so the target is a more positive number
+>
+> **Lower AIC** are preferred.
+
+## 5. Perform the diagnostic checks on the fitted ARMA model, including residual analysis and autocorrelation checks
+
+### residual analysis
+
+```{r}
+checkresiduals(arma_model_q1)
+```
+
+> **Ljung-box Output**
+>
+> observation
+>
+> -   the data has an intercept, has a $\mu \neq 0$
+>
+> -   the sum of squared auto correlations is $Q = 10.899$
+>
+> -   the degrees of freedom are 7
+>
+> $$
+> Df = Total\ lags\ used - model\ df\\
+> = 10 - 3\\
+> = 7
+> $$
+>
+> -   p-value $0.1431$ which is greater than a significance value of $0.05$
+>
+> -   there are 3 parameters used $model\ df$
+>
+> interpretation
+>
+> $H_0$ There is no significant evidence of autocorrelation in the residuals of ARMA
+>
+> $H_1$ There is a statistically significant autocorrelation in the residuals of the ARMA
+>
+> 1.  There is no significant evidence of autocorrelation in the residuals of your ARIMA(2,0,1) model at the lags tested up to lag 10
+> 2.  The model has adequately captured the auto-correlations in the data
+> 3.  The model however leaves some patterns unaccounted for
+>
+> the plots
+>
+> 1.  The residuals from the model were found to be normally distributed and did not show significant autocorrelation. This means that **Residuals are noise**
+> 2.  The model will be accurate as the residuals follow a normal distribution.
+> 3.  residuals appear as noice based on the line graph with volatile peaks and troughs that are angled sharply
+
+### Auto-correlation checks
+
+```{r}
+Box.test(arma_model_q1$residuals, lag = 25, type = "Ljung-Box")
+```
+
+> From the **P-value** of $0.3465 \geq 0.05$ the data residuals have no significant evidence of autocorrelation
+>
+> **Conclusion** the residuals act as noise. The model captures the time based structure of the data.
+
+## 6. Using the fitted ARMA model, forecast the next 20 data points. Plot the forecasted values along with their confidence intervals.
+
+```{r}
+forcst = forecast(arma_model_q1, h = 20)
+forcst
+```
+
+```{r}
+forecst_q1 = data.frame(
+  time = seq(501, 520),
+  PointForecast = as.numeric(forcst$mean),
+  Lo80 = as.numeric(forcst$lower[,1]),
+  Hi80 = as.numeric(forcst$upper[,1]),
+  Lo95 = as.numeric(forcst$lower[,2]),
+  Hi95 = as.numeric(forcst$upper[,2])
+)
+
+ggplot(forecst_q1, aes(x = time))+
+  geom_line(aes(y = PointForecast), color = "blue") +
+  geom_ribbon(aes(ymin = Lo95, ymax = Hi95), fill = "darkgreen", alpha = 0.2) +
+  geom_ribbon(aes(ymin = Lo80, ymax = Hi80), fill = "green", alpha = 0.4) +
+  labs(title = "ARMA Forecast with Confidence Intervals",
+       x = "Time",
+       y = "Forecasted Value") +
+  theme_minimal()
+
+```
+
+## 7. Discuss the reliability of these forecasts based on the model diagnostics.
+
+> **Observation**
+>
+> -   narrow confidence interval at the beginning
+>
+> -   wider confidence interval at the end
+>
+> -   predicted values stabilize after time = 515
+>
+> **Interpretation**
+>
+> -   There is decreasing accuracy in the forecast data as time increases. There is reduced reliability in long-term forecasts
+>
+> -   This model has values that fall within the threshold set at 95 % CL and even at 80% CL the predicted values still fall within the bounds indicating forecast values are reasonably reliable
+>
+> **Conclusion**
+>
+> The residuals from the model were found to be approximately normally distributed and did not show significant autocorrelation, as evidenced by ACF plots and Ljung-Box test results. **Residuals are noise**
+>
+> The model is accurate as the residuals follow a normal distribution.
+>
+> This is a reliable forecast based on a model that has effectively utilized available information in the historical data.
+>
+> The model is well fitted because of the AIC and BIC values provided earlier being relatively low, suggesting a good fit of the model to the data
+
+# QUESTION 2: Fitting an ARIMA Model:
+
+You have another time series that appears to be non-stationary. Your task is to model this series using an ARIMA model to account for its integrated nature.
+
+**Packages**: forecast and tseries
+
+## 1. Simulate a time series dataset of length 500 from an ARIMA(1,1,1) model with AR parameters 0.65, and an MA parameter 0.4. Ensure you set a seed for reproducibility
+
+```{r}
+library(forecast)
+```
+
+```{r}
+set.seed(1111)
+sim_arima = arima.sim(n = 499, list(order = c(1, 1, 1), ar = (0.65), ma = c(0.4)))
+head(sim_arima)
+```
+
+```{r}
+data_q2 = as.numeric(sim_arima)
+```
+
+## 2. Plot the simulated time series data and describe any patterns or characteristics you observe
+
+```{r}
+plot_data_q2 = data.frame(
+  time = seq(0, 499),
+  data = data_q2
+)
+
+ggplot(plot_data_q2, aes(x = time, y = data))+
+  geom_line()+
+  labs(
+    title = "simulated ARIMA data",
+    xlab = "time",
+    ylab = "Simulated"
+  )+
+  theme_minimal()
+```
+
+## 3. Plot the ACF and PACF of the differenced simulated ARIMA data. Interpret the plots
+
+before plotting the generated data must be made stationary
+
+> ARIMA data is stationary after the first differencing
+
+```{r}
+adf.test(sim_arima, alternative = "stationary")
+```
+
+> the p-value $0.4158 \geq 0.05$ we fail to reject $H_0$ for the Augmented Dickey-Fuller Test
+>
+> -   **conclude** the data needs to be made stationary
+
+```{r}
+stationary_arima = diff(sim_arima, differences =  1)
+```
+
+### check the stationarity of the data
+
+```{r}
+adf.test(stationary_arima, alternative = "stationary")
+```
+
+> The `Augmented Dickey-Fuller Test` has:
+>
+> -   the experiment p-value is now $0.01$ and $0.01 \lt 0.05$ meaning that we can now reject the null hypothesis
+>
+> -   **conclude** the data is stationary; we can plot the ACF
+
+```{r}
+acf(stationary_arima, main = "The ACF for the ARIMA data")
+```
+
+> **Observation**
+>
+> -   `the first 10 lags` fall outside the 95% confidence level.
+>
+> -   There is a decrease in autocorrelation from the initial lag at lag 0 of 1
+>
+> -   There are no spikes after the initial 10 lags
+>
+> **Interpretation**
+>
+> 1.  The influence of a given observation significantly diminishes as the time lag increases.
+> 2.  Past values have little to no influence on future values beyond the first 10 lags
+> 3.  The absence of spikes after lag 10 indicate that there are no additional seasonal patterns or longer-term autoregressive behaviors that are not already accounted for by the model.
+> 4.  The model accurately captures the auto-regression in the data
+
+### PACF
+
+```{r}
+pacf(stationary_arima, main = "Partial ACF of the generated ARIMA data")
+```
+
+> **Observation**
+>
+> -   The first lag and second lag have a partial auto correlation outside the bounds of the 95% confidence level blue horizontal lines
+>
+> -   After this the data drops and the auto correlation drops to below the confidence interval bounds $\frac{\pm 2}{T}$
+>
+> **Interpretation**
+>
+> 1.  The data at time t has a notable direct relationship with the data at time $t -1$ which drops significantly at $t-2$ and the relationship is no longer significant after
+> 2.  The model fits the AR(1) because of the lack of spikes after the lag 1
+> 3.  
+
+## 4. Fit an ARMA(1,1,1) model to the simulated data. Summarize the model and interpret the key output components, including parameter estimates and their significance, standard error, and model fit statistics
+
+```{r}
+q2_model = Arima(sim_arima, order = c(1, 1, 1))
+summary(q2_model)
+```
+
+> **Observation**
+>
+> -   The ar1 has s.e that is significantly lower than the actual estimate
+>
+> -   the ma1 has a similarly lower s.e than its estimate
+>
+> -   **Variance** the variance $\approx 1$
+>
+> **Interpretation**
+>
+> the model leaves a lot of variance unexplained
+>
+> the model suggests a significant positive relationship between each value and the next in the series, meaning each value is strongly influenced by its immediate predecessor
+>
+> there is a moderate influence of the previous error term on the current prediction because of the high reliability of the MA
+>
+> the small se values indicate the model is reliable
+>
+> The model is a good fit for this particular data set.
+>
+> It is capable of capturing the main patterns and providing reliable forecasts
+
+## 5. Perform the diagnostic checks on the fitted ARIMA model, including residual analysis and autocorrelation checks
+
+```{r}
+checkresiduals(q2_model)
+```
+
+> > $H_0$ There is no significant evidence of autocorrelation in the residuals of ARIMA
+> >
+> > $H_1$ There is a statistically significant autocorrelation in the residuals of the ARIMA
+>
+> because the pvalue is $0.3161 \geq 0.05$ we fail to reject $H_0$ and conclude that there is no significant evidence of autocorrelation in the residuals of the ARIMA model.
+>
+> **The plots**
+>
+> -   The residuals appear to be noise indicating that the ARIMA(1,1,1) model has effectively extracted underlying patterns from the data leaving behind random noise which does not contain further information
+>
+> -   There is no evident autocorrelation or non-random pattern left in the residuals that could have been otherwise captured by the model.
+>
+> -   The forecasts of the model will therefore be reliable
+>
+> -   The residuals from the model were found to be normally distributed and did not show significant autocorrelation. This means that **Residuals are noise**
+>
+> -   The model will be accurate as the residuals follow a normal distribution.
+>
+> -   residuals appear as noice based on the line graph with volatile sharp peaks and troughs
+
+## 6. Using the fitted ARMA model, forecast the next 20 data points. Plot the forecasted values along with their confidence intervals.
+
+```{r}
+forecst_data = forecast(q2_model, h = 20)
+forecst_data
+```
+
+```{r}
+forecst_q2 = data.frame(
+  time = seq(501, 520),
+  PointForecast = as.numeric(forecst_data$mean),
+  Lo80 = as.numeric(forecst_data$lower[,1]),
+  Hi80 = as.numeric(forecst_data$upper[,1]),
+  Lo95 = as.numeric(forecst_data$lower[,2]),
+  Hi95 = as.numeric(forecst_data$upper[,2])
+)
+
+ggplot(forecst_q2, aes(x = time))+
+  geom_line(aes(y = PointForecast), color = "blue") +
+  geom_ribbon(aes(ymin = Lo95, ymax = Hi95), fill = "orange", alpha = 0.2) +
+  geom_ribbon(aes(ymin = Lo80, ymax = Hi80), fill = "green", alpha = 0.4) +
+  labs(title = "ARIMA Forecast with Confidence Intervals",
+       x = "Time",
+       y = "Forecasted Value") +
+  theme_minimal()
+
+```
+
+## 7. Discuss the reliability of these forecasts based on the model diagnostics
+
+> The forecasts seems to show a generally stable forecast, with a slight downward trend as time progresses
+>
+> The precision decreased over time as the area under the 80% cf `green` widens. similar to the area under `95%` orange
+>
+> This means that there is increased uncertainity in the predictions over time
+>
+> The residuals from the model were found to be approximately normally distributed and did not show significant autocorrelation, as evidenced by ACF plots and Ljung-Box test results. **Residuals are noise**
+>
+> The residuals being normally distributed support the accuracy of the model. This follows the claim by Hyndman and Athanasopoulos (2018) that residuals for a good forecasting model should be normally distributed.
+>
+> This is a reliable forecast based on a model that has effectively utilized available information in the historical data.
+>
+> The model is well fitted because of the AIC and BIC values provided earlier being relatively low, suggesting a good fit of the model to the data
+
+# **References**
+
+Hyndman, R. J., & Athanasopoulos, G. (2018). Forecasting: Principles and Practice. In *otexts.com*. OTexts. <https://otexts.com/fpp2/residuals.html>
+
+Kolassa, S. (2018, February 8). *Understanding the blue dotted lines in an ACF from R*. Cross Validated. <https://stats.stackexchange.com/questions/49571/understanding-the-blue-dotted-lines-in-an-acf-from-r>
+
+r-project_org. (2024, June 14). *R: Simulate from an ARIMA Model*. Search.r-Project.org. <https://search.r-project.org/R/refmans/stats/html/arima.sim.html>

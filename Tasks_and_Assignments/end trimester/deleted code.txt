@@ -1,0 +1,25 @@
+fit_arima = function(p, d, q){
+  q8_arima = arima(AirPassengers, order = c(p, d, q))
+  coef = coef(q8_arima)
+  se = sqrt(diag(q8_arima$var.coef))
+  t_value = coef / se
+  df <- length(AirPassengers) - length(coef)
+  
+  p_value <- 2 * pt(-abs(t_value), df = df)
+  
+  return(p_value)
+}
+
+
+
+for(i in 0:20){
+  for(j in 0:20){
+    for(k in 0:20){
+      ar_val = fit_arima(k,i ,j)
+      if(ar_val >= 0.05){
+        print(paste("AR(", k, ") d(", i, "MA(", j,")"))
+        break
+      }
+    }
+  }
+}
